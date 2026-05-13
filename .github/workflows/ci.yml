@@ -45,9 +45,16 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Add cargo to PATH (macOS)
+        if: runner.os == 'macOS'
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --lib --all
+      - name: Verify toolchain
+        run: rustc --version && cargo --version
+      - name: Run unit tests
+        run: cargo test --lib --all
 
   test-integration:
     name: Integration Tests
