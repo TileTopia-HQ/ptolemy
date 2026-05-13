@@ -35,7 +35,7 @@ pub fn v1_routes() -> Router<AppState> {
         .route("/branches/{id}/features/within", post(features_within))
         .route("/branches/{id}/features/count", get(features_count))
         // MVT tiles
-        .route("/branches/{id}/tiles/{z}/{x}/{y}.mvt", get(mvt_tile))
+        .route("/branches/{id}/tiles/{z}/{x}/{y}", get(mvt_tile))
         // Commits
         .route("/branches/{id}/commit", post(commit))
         .route("/branches/{id}/batch", post(batch_commit))

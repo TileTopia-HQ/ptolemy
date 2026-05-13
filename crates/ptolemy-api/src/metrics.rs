@@ -19,13 +19,13 @@ use std::time::Instant;
 
 static PROMETHEUS_HANDLE: OnceLock<PrometheusHandle> = OnceLock::new();
 
-/// Initialize the Prometheus metrics recorder. Call once at startup.
+/// Initialize the Prometheus metrics recorder. Safe to call multiple times (idempotent).
 pub fn init_metrics() -> PrometheusHandle {
-    let handle = PrometheusBuilder::new()
-        .install_recorder()
-        .expect("failed to install Prometheus recorder");
-    PROMETHEUS_HANDLE.get_or_init(|| handle.clone());
-    handle
+    PROMETHEUS_HANDLE.get_or_init(|| {
+        PrometheusBuilder::new()
+            .install_recorder()
+            .expect("failed to install Prometheus recorder")
+    }).clone()
 }
 
 /// Middleware that records request duration and status code.
