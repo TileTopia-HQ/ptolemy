@@ -217,7 +217,7 @@ async fn test_commit_update_feature() {
         .await
         .unwrap();
 
-    assert_eq!(c2.parent_id.is_some(), true);
+    assert!(c2.parent_id.is_some());
 
     let features = store.list_features_at_head(branch.id).await.unwrap();
     assert_eq!(features.len(), 1);

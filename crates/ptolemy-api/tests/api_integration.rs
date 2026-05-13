@@ -131,7 +131,7 @@ async fn commit_features(app: &axum::Router, branch_id: Uuid, ops: Value) -> Uui
     // The response is a Changeset struct serialized as JSON
     let id_str = body["id"]
         .as_str()
-        .expect(&format!("commit response has no 'id' field: {body}"));
+        .unwrap_or_else(|| panic!("commit response has no 'id' field: {body}"));
     Uuid::parse_str(id_str).unwrap()
 }
 
@@ -154,7 +154,7 @@ async fn test_dataset_crud() {
     // List
     let (status, body) = get_json(&app, "/api/v1/datasets").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.as_array().unwrap().len() >= 1);
+    assert!(!body.as_array().unwrap().is_empty());
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -225,7 +225,7 @@ async fn test_spatial_query_bbox() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.as_array().unwrap().len() >= 1);
+    assert!(!body.as_array().unwrap().is_empty());
 
     // Bbox that excludes POINT(1 2)
     let (status, body) = get_json(
@@ -293,7 +293,7 @@ async fn test_merge_branches() {
     // Merge dev → main (route is /branches/{target}/merge/{source})
     let req = Request::builder()
         .method("POST")
-        .uri(&format!("/api/v1/branches/{main_id}/merge/{dev_id}"))
+        .uri(format!("/api/v1/branches/{main_id}/merge/{dev_id}"))
         .header("content-type", "application/json")
         .body(Body::empty())
         .unwrap();
@@ -398,7 +398,7 @@ async fn test_export_geojson() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["type"], "FeatureCollection");
-    assert!(body["features"].as_array().unwrap().len() >= 1);
+    assert!(!body["features"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -416,7 +416,7 @@ async fn test_export_csv() {
     // CSV export returns text/csv, not JSON
     let req = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/branches/{branch_id}/export/csv"))
+        .uri(format!("/api/v1/branches/{branch_id}/export/csv"))
         .body(Body::empty())
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
@@ -465,11 +465,11 @@ async fn test_crs_transform() {
 async fn test_crs_search() {
     let (app, _) = setup_app().await;
     let ds_id = create_dataset(&app).await;
-    let branch_id = create_branch(&app, ds_id, "main").await;
+    let _branch_id = create_branch(&app, ds_id, "main").await;
 
     let (status, body) = get_json(&app, "/api/v1/crs/search?q=WGS+84").await;
     assert_eq!(status, StatusCode::OK, "crs search: {body}");
-    assert!(body["results"].as_array().unwrap().len() >= 1);
+    assert!(!body["results"].as_array().unwrap().is_empty());
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -516,7 +516,7 @@ async fn test_ogc_conformance() {
 
     let (status, body) = get_json(&app, "/api/v1/ogc/conformance").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body["conformsTo"].as_array().unwrap().len() >= 1);
+    assert!(!body["conformsTo"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -526,7 +526,7 @@ async fn test_ogc_collections() {
 
     let (status, body) = get_json(&app, "/api/v1/ogc/collections").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body["collections"].as_array().unwrap().len() >= 1);
+    assert!(!body["collections"].as_array().unwrap().is_empty());
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -729,7 +729,7 @@ async fn test_vector_similarity_search() {
 async fn test_network_shortest_path() {
     let (app, _) = setup_app().await;
     let ds_id = create_dataset(&app).await;
-    let branch_id = create_branch(&app, ds_id, "main").await;
+    let _branch_id = create_branch(&app, ds_id, "main").await;
 
     // Network routes need a network ID, not branch ID
     // Just verify the route group exists
@@ -748,7 +748,7 @@ async fn test_network_shortest_path() {
 async fn test_trajectory_list() {
     let (app, _) = setup_app().await;
     let ds_id = create_dataset(&app).await;
-    let branch_id = create_branch(&app, ds_id, "main").await;
+    let _branch_id = create_branch(&app, ds_id, "main").await;
 
     let (status, _body) = get_json(&app, &format!("/api/v1/datasets/{ds_id}/trajectories")).await;
     // MobilityDB might not be installed
