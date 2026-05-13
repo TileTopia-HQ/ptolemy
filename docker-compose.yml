@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ptolemy
+      POSTGRES_PASSWORD: ptolemy
+      POSTGRES_DB: ptolemy
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ptolemy"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  ptolemy:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://ptolemy:ptolemy@db/ptolemy
+      RUST_LOG: info
+    ports:
+      - "3000:3000"
+    command: ["ptolemy", "serve", "--bind", "0.0.0.0:3000", "--database-url", "postgres://ptolemy:ptolemy@db/ptolemy"]
+
+volumes:
+  pgdata:

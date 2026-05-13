@@ -10,11 +10,15 @@ path = "src/main.rs"
 
 [dependencies]
 ptolemy-api = { path = "../ptolemy-api" }
+ptolemy-core = { path = "../ptolemy-core" }
 ptolemy-storage = { path = "../ptolemy-storage" }
 anyhow.workspace = true
 axum.workspace = true
 clap.workspace = true
+serde_json.workspace = true
 sqlx.workspace = true
+time.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+uuid.workspace = true

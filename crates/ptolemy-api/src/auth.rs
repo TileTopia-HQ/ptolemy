@@ -1,0 +1,171 @@
+// This Source Code Form is subject to the terms of the GNU Affero General Public
+// License, v. 3.0. If a copy of the AGPL was not distributed with this
+// file, You can obtain one at https://gnu.org/licenses/agpl-3.0.html.
+
+//! JWT authentication and RBAC middleware.
+
+use axum::{
+    body::Body,
+    extract::Request,
+    http::{header, StatusCode},
+    middleware::Next,
+    response::{IntoResponse, Response},
+    Json,
+};
+use jsonwebtoken::{decode, DecodingKey, Validation};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+/// JWT claims structure.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Claims {
+    /// Subject (user ID)
+    pub sub: String,
+    /// User's display name
+    pub name: String,
+    /// Roles assigned to the user
+    pub roles: Vec<Role>,
+    /// Expiration time (UNIX timestamp)
+    pub exp: u64,
+    /// Issued at (UNIX timestamp)
+    pub iat: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Role {
+    Admin,
+    Editor,
+    Viewer,
+}
+
+impl Role {
+    pub fn can_write(&self) -> bool {
+        matches!(self, Role::Admin | Role::Editor)
+    }
+
+    pub fn can_admin(&self) -> bool {
+        matches!(self, Role::Admin)
+    }
+}
+
+/// Configuration for JWT validation.
+#[derive(Clone)]
+pub struct AuthConfig {
+    pub secret: String,
+    pub enabled: bool,
+}
+
+impl AuthConfig {
+    pub fn from_env() -> Self {
+        let secret = std::env::var("PTOLEMY_JWT_SECRET").unwrap_or_default();
+        let enabled = !secret.is_empty();
+        Self { secret, enabled }
+    }
+
+    pub fn disabled() -> Self {
+        Self {
+            secret: String::new(),
+            enabled: false,
+        }
+    }
+}
+
+/// Middleware that validates JWT tokens from the Authorization header.
+/// If auth is disabled (no PTOLEMY_JWT_SECRET), all requests pass through.
+pub async fn auth_middleware(
+    request: Request,
+    next: Next,
+) -> Response {
+    let config = AuthConfig::from_env();
+
+    if !config.enabled {
+        return next.run(request).await;
+    }
+
+    // Skip auth for health endpoint
+    if request.uri().path() == "/api/v1/health" {
+        return next.run(request).await;
+    }
+
+    let token = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "));
+
+    let Some(token) = token else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "missing authorization header"})),
+        )
+            .into_response();
+    };
+
+    let key = DecodingKey::from_secret(config.secret.as_bytes());
+    let validation = Validation::default();
+
+    match decode::<Claims>(token, &key, &validation) {
+        Ok(data) => {
+            // Attach claims to request extensions for downstream handlers
+            let mut request = request;
+            request.extensions_mut().insert(data.claims);
+            next.run(request).await
+        }
+        Err(e) => (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": format!("invalid token: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+/// Require write permission (admin or editor role).
+pub async fn require_write(
+    request: Request,
+    next: Next,
+) -> Response {
+    let config = AuthConfig::from_env();
+    if !config.enabled {
+        return next.run(request).await;
+    }
+
+    let claims = request.extensions().get::<Claims>();
+    match claims {
+        Some(c) if c.roles.iter().any(|r| r.can_write()) => next.run(request).await,
+        Some(_) => (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"error": "write permission required"})),
+        )
+            .into_response(),
+        None => (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "not authenticated"})),
+        )
+            .into_response(),
+    }
+}
+
+/// Generate a JWT token (for testing/admin use).
+pub fn generate_token(secret: &str, sub: &str, name: &str, roles: Vec<Role>, ttl_secs: u64) -> String {
+    use jsonwebtoken::{encode, EncodingKey, Header};
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let claims = Claims {
+        sub: sub.to_string(),
+        name: name.to_string(),
+        roles,
+        exp: now + ttl_secs,
+        iat: now,
+    };
+
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .unwrap()
+}

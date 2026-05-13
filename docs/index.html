@@ -59,7 +59,7 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 <div class="stats">
 <div class="stat"><div class="num">4</div><div class="label">Rust crates</div></div>
 <div class="stat"><div class="num">15</div><div class="label">Integration tests</div></div>
-<div class="stat"><div class="num">$0</div><div class="label">Per month</div></div>
+<div class="stat"><div class="num">10+</div><div class="label">CLI commands</div></div>
 <div class="stat"><div class="num">∞</div><div class="label">Features stored</div></div>
 </div>
 </div>
@@ -107,8 +107,9 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 <li>Multi-user concurrent editing</li>
 <li>Named branches per team/task</li>
 <li>Review & merge workflows</li>
-<li>Audit trail for all changes</li>
-<li>Role-based access control (planned)</li>
+<li>WebSocket real-time branch events</li>
+<li>JWT authentication (PTOLEMY_JWT_SECRET)</li>
+<li>Role-based access control (Admin/Editor/Viewer)</li>
 </ul>
 </div>
 <div class="card">
@@ -125,10 +126,10 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 <h3>🚀 Deployment</h3>
 <ul>
 <li>Single binary CLI (<code>ptolemy serve</code>)</li>
-<li>Docker-ready</li>
+<li>Docker + docker-compose</li>
 <li>ENV-based configuration</li>
-<li>Prometheus metrics (planned)</li>
-<li>Horizontal scaling (planned)</li>
+<li>GeoJSON import/export</li>
+<li>Full CLI: dataset, branch, commit, merge, log, diff</li>
 </ul>
 </div>
 </div>
@@ -201,7 +202,8 @@ curl http://localhost:3000/health</code></pre>
 <tr><td>v0.1</td><td>Core types, Store trait, API skeleton, CLI</td><td style="color:var(--accent2)">✓ Done</td></tr>
 <tr><td>v0.2</td><td>SQL migrations, full CRUD, branching, changesets, commit engine</td><td style="color:var(--accent2)">✓ Done</td></tr>
 <tr><td>v0.3</td><td>Diff engine, three-way merge, conflict detection, REST API</td><td style="color:var(--accent2)">✓ Done</td></tr>
-<tr><td>v0.4</td><td>Auth (OIDC/RBAC), WebSocket collaboration, CLI workflows</td><td style="color:var(--muted)">Next</td></tr>
+<tr><td>v0.4</td><td>Auth (JWT/RBAC), WebSocket collaboration, CLI workflows, GeoJSON I/O</td><td style="color:var(--accent2)">✓ Done</td></tr>
+<tr><td>v0.5</td><td>Prometheus metrics, horizontal scaling, OIDC SSO</td><td style="color:var(--muted)">Next</td></tr>
 </tbody>
 </table>
 </div>
