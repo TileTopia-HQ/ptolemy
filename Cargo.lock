@@ -1197,10 +1197,12 @@ name = "ptolemy-api"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "hex",
  "ptolemy-core",
  "ptolemy-storage",
  "serde",
  "serde_json",
+ "time",
  "tokio",
  "tower-http",
  "tracing",

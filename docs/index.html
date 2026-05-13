@@ -58,7 +58,7 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 </div>
 <div class="stats">
 <div class="stat"><div class="num">4</div><div class="label">Rust crates</div></div>
-<div class="stat"><div class="num">Git-like</div><div class="label">Branching model</div></div>
+<div class="stat"><div class="num">15</div><div class="label">Integration tests</div></div>
 <div class="stat"><div class="num">$0</div><div class="label">Per month</div></div>
 <div class="stat"><div class="num">∞</div><div class="label">Features stored</div></div>
 </div>
@@ -92,10 +92,12 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 <div class="card">
 <h3>🌐 REST API</h3>
 <ul>
-<li>Axum-based async HTTP server</li>
+<li>Axum 0.8 async HTTP server</li>
 <li>Dataset, branch, and feature CRUD</li>
-<li>GeoJSON import/export</li>
-<li>Changeset commit workflow</li>
+<li>Commit endpoint with DiffOp operations</li>
+<li>Branch merge with conflict reporting</li>
+<li>Diff between any two changesets</li>
+<li>Branch history (commit log)</li>
 <li>Health checks & readiness probes</li>
 </ul>
 </div>
@@ -197,9 +199,9 @@ curl http://localhost:3000/health</code></pre>
 <thead><tr><th>Version</th><th>Milestone</th><th>Status</th></tr></thead>
 <tbody>
 <tr><td>v0.1</td><td>Core types, Store trait, API skeleton, CLI</td><td style="color:var(--accent2)">✓ Done</td></tr>
-<tr><td>v0.2</td><td>SQL migrations, full CRUD, branching, changesets</td><td style="color:var(--muted)">Next</td></tr>
-<tr><td>v0.3</td><td>Diff engine, merge/conflict resolution, spatial queries</td><td style="color:var(--muted)">Planned</td></tr>
-<tr><td>v0.4</td><td>Auth (OIDC/RBAC), WebSocket collaboration, CLI workflows</td><td style="color:var(--muted)">Planned</td></tr>
+<tr><td>v0.2</td><td>SQL migrations, full CRUD, branching, changesets, commit engine</td><td style="color:var(--accent2)">✓ Done</td></tr>
+<tr><td>v0.3</td><td>Diff engine, three-way merge, conflict detection, REST API</td><td style="color:var(--accent2)">✓ Done</td></tr>
+<tr><td>v0.4</td><td>Auth (OIDC/RBAC), WebSocket collaboration, CLI workflows</td><td style="color:var(--muted)">Next</td></tr>
 </tbody>
 </table>
 </div>
