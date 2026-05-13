@@ -51,11 +51,13 @@ async fn similarity_search(
     let embedding_str = format!("[{}]", req.embedding.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(","));
 
     let rows = sqlx::query(
-        "SELECT id, 1 - (embedding <=> $2::vector) as score
-         FROM features
-         WHERE branch_id = $1 AND embedding IS NOT NULL
-           AND 1 - (embedding <=> $2::vector) > $3
-         ORDER BY embedding <=> $2::vector
+        "SELECT DISTINCT ON (fv.feature_id) fv.feature_id as id,
+                1 - (fv.embedding <=> $2::vector) as score
+         FROM feature_versions fv
+         JOIN changesets c ON fv.changeset_id = c.id
+         WHERE c.branch_id = $1 AND fv.embedding IS NOT NULL
+           AND 1 - (fv.embedding <=> $2::vector) > $3
+         ORDER BY fv.feature_id, fv.created_at DESC, fv.embedding <=> $2::vector
          LIMIT $4",
     ).bind(branch_id).bind(&embedding_str).bind(req.threshold).bind(req.limit)
     .fetch_all(store.pool()).await?;
@@ -87,15 +89,20 @@ async fn find_duplicates(
     Query(q): Query<DuplicateQuery>,
 ) -> Result<Json<Vec<DuplicatePair>>, VectorError> {
     let rows = sqlx::query(
-        "SELECT a.id as a_id, b.id as b_id,
-                1 - (a.embedding <=> b.embedding) as similarity
-         FROM features a
-         JOIN features b ON a.id < b.id AND a.branch_id = b.branch_id
-         WHERE a.branch_id = $1
-           AND a.embedding IS NOT NULL AND b.embedding IS NOT NULL
-           AND 1 - (a.embedding <=> b.embedding) > $2
-         ORDER BY similarity DESC
-         LIMIT $3",
+        "WITH latest AS (
+            SELECT DISTINCT ON (fv.feature_id) fv.feature_id as id, fv.embedding
+            FROM feature_versions fv
+            JOIN changesets c ON fv.changeset_id = c.id
+            WHERE c.branch_id = $1 AND fv.embedding IS NOT NULL AND fv.operation != 'delete'
+            ORDER BY fv.feature_id, fv.created_at DESC
+        )
+        SELECT a.id as a_id, b.id as b_id,
+               1 - (a.embedding <=> b.embedding) as similarity
+        FROM latest a
+        JOIN latest b ON a.id < b.id
+        WHERE 1 - (a.embedding <=> b.embedding) > $2
+        ORDER BY similarity DESC
+        LIMIT $3",
     ).bind(branch_id).bind(q.threshold).bind(q.limit.unwrap_or(100))
     .fetch_all(store.pool()).await?;
 
@@ -106,7 +113,7 @@ async fn find_duplicates(
 }
 
 /// Generate embeddings for features based on their properties (simplified).
-/// In production you'd call an embedding model; here we create a hash-based vector.
+/// Uses pgcrypto digest to create deterministic property-based vectors.
 #[derive(Deserialize)]
 struct EmbedRequest {
     /// Which property fields to embed
@@ -118,24 +125,28 @@ async fn generate_embeddings(
     Path(branch_id): Path<Uuid>,
     Json(req): Json<EmbedRequest>,
 ) -> Result<Json<serde_json::Value>, VectorError> {
-    // Generate simple property-based embeddings using PostgreSQL
-    // This creates a deterministic vector from property values
+    // Generate deterministic property-based embeddings using pgcrypto
     let fields_expr = req.fields.iter()
-        .map(|f| format!("COALESCE(properties->>'{}', '')", f.replace('\'', "''")))
+        .map(|f| format!("COALESCE(fv.properties->>'{}', '')", f.replace('\'', "''")))
         .collect::<Vec<_>>()
         .join(" || ' ' || ");
 
+    let props_expr = if fields_expr.is_empty() { "fv.properties::text".to_string() } else { fields_expr };
+
     let query = format!(
-        "UPDATE features
+        "UPDATE feature_versions fv
          SET embedding = (
             SELECT array_agg(v)::vector(256)
             FROM (
-                SELECT (get_byte(digest(({fields}) || i::text, 'sha256'), i % 32)::float / 255.0) as v
+                SELECT (get_byte(digest(({props}) || i::text, 'sha256'), i % 32)::float / 255.0) as v
                 FROM generate_series(0, 255) as i
             ) sub
          )
-         WHERE branch_id = $1 AND properties IS NOT NULL",
-        fields = if fields_expr.is_empty() { "properties::text".to_string() } else { fields_expr },
+         FROM changesets c
+         WHERE fv.changeset_id = c.id
+           AND c.branch_id = $1
+           AND fv.properties IS NOT NULL",
+        props = props_expr,
     );
 
     let result = sqlx::query(&query).bind(branch_id).execute(store.pool()).await?;
@@ -155,18 +166,24 @@ async fn cluster_by_embedding(
     Path(branch_id): Path<Uuid>,
     Json(req): Json<ClusterRequest>,
 ) -> Result<Json<serde_json::Value>, VectorError> {
-    // Use pgvector kmeans clustering
+    // Use pgvector distance-based partitioning (ntile over embedding distance from centroid)
     let rows = sqlx::query(
-        "SELECT kmeans_cluster, COUNT(*) as count, array_agg(id) as feature_ids
-         FROM (
+        "WITH latest AS (
+            SELECT DISTINCT ON (fv.feature_id) fv.feature_id as id, fv.embedding
+            FROM feature_versions fv
+            JOIN changesets c ON fv.changeset_id = c.id
+            WHERE c.branch_id = $1 AND fv.embedding IS NOT NULL AND fv.operation != 'delete'
+            ORDER BY fv.feature_id, fv.created_at DESC
+        )
+        SELECT kmeans_cluster, COUNT(*) as count, array_agg(id) as feature_ids
+        FROM (
             SELECT id,
-                   (embedding <#> (SELECT avg(embedding) FROM features WHERE branch_id = $1)::vector) as dist,
-                   ntile($2) OVER (ORDER BY embedding <#> (SELECT avg(embedding) FROM features WHERE branch_id = $1)::vector) as kmeans_cluster
-            FROM features
-            WHERE branch_id = $1 AND embedding IS NOT NULL
-         ) clustered
-         GROUP BY kmeans_cluster
-         ORDER BY kmeans_cluster",
+                   ntile($2) OVER (ORDER BY embedding <=> (SELECT avg(embedding)::vector FROM latest)) as kmeans_cluster,
+                   embedding
+            FROM latest
+        ) clustered
+        GROUP BY kmeans_cluster
+        ORDER BY kmeans_cluster",
     ).bind(branch_id).bind(req.num_clusters)
     .fetch_all(store.pool()).await?;
 

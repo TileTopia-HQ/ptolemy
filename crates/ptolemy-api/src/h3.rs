@@ -42,8 +42,12 @@ async fn index_features_h3(
     Json(req): Json<IndexH3Request>,
 ) -> Result<Json<serde_json::Value>, H3Error> {
     let result = sqlx::query(
-        "UPDATE features SET h3_index = h3_lat_lng_to_cell(ST_Centroid(geometry), $2)
-         WHERE branch_id = $1 AND geometry IS NOT NULL",
+        "UPDATE feature_versions fv
+         SET h3_index = h3_lat_lng_to_cell(ST_Centroid(fv.geometry), $2)
+         FROM changesets c
+         WHERE fv.changeset_id = c.id
+           AND c.branch_id = $1
+           AND fv.geometry IS NOT NULL",
     ).bind(branch_id).bind(req.resolution)
     .execute(store.pool()).await?;
 

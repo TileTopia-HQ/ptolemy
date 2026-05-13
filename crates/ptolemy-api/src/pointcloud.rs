@@ -112,6 +112,8 @@ async fn list_patches(
 struct AddPatchRequest {
     bounds_wkb_hex: String,
     num_points: i32,
+    /// PC patch binary data as hex-encoded WKB (from pdal or pc_astext output)
+    patch_hex: String,
 }
 
 async fn add_patch(
@@ -120,11 +122,12 @@ async fn add_patch(
     Json(req): Json<AddPatchRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), PcError> {
     let id = Uuid::now_v7();
-    let wkb = hex::decode(&req.bounds_wkb_hex).map_err(|_| PcError::Bad("invalid hex".into()))?;
+    let wkb = hex::decode(&req.bounds_wkb_hex).map_err(|_| PcError::Bad("invalid bounds hex".into()))?;
+    let patch_data = hex::decode(&req.patch_hex).map_err(|_| PcError::Bad("invalid patch hex".into()))?;
     sqlx::query(
-        "INSERT INTO pointcloud_patches (id, catalog_id, bounds, num_points)
-         VALUES ($1, $2, ST_GeomFromWKB($3, 4326), $4)",
-    ).bind(id).bind(catalog_id).bind(&wkb).bind(req.num_points)
+        "INSERT INTO pointcloud_patches (id, catalog_id, bounds, num_points, pa)
+         VALUES ($1, $2, ST_GeomFromWKB($3, 4326), $4, $5::pcpatch)",
+    ).bind(id).bind(catalog_id).bind(&wkb).bind(req.num_points).bind(&patch_data)
     .execute(store.pool()).await?;
     Ok((StatusCode::CREATED, Json(serde_json::json!({"id": id}))))
 }
@@ -199,6 +202,7 @@ async fn elevation_profile(
     Json(req): Json<ProfileRequest>,
 ) -> Result<Json<serde_json::Value>, PcError> {
     let wkb = hex::decode(&req.line_wkb_hex).map_err(|_| PcError::Bad("invalid hex".into()))?;
+    // Query real elevation from point cloud patches along the line
     let rows = sqlx::query(
         "WITH line AS (
             SELECT ST_GeomFromWKB($2, 4326) as geom
@@ -207,9 +211,24 @@ async fn elevation_profile(
             SELECT ST_LineInterpolatePoint(l.geom, i::float / $3) as pt,
                    i::float / $3 as fraction
             FROM line l, generate_series(0, $3) i
+        ),
+        elevations AS (
+            SELECT s.fraction,
+                   ST_X(s.pt) as lng,
+                   ST_Y(s.pt) as lat,
+                   (SELECT AVG(PC_Get(p, 'z')::float)
+                    FROM (
+                        SELECT PC_Explode(pp.pa) as p
+                        FROM pointcloud_patches pp
+                        WHERE pp.catalog_id = $1
+                          AND pp.bounds && ST_Expand(s.pt, 0.0001)
+                    ) sub
+                    WHERE ST_DWithin(PC_Get(p, 'x')::float, ST_X(s.pt), 0.0001)
+                      AND ST_DWithin(PC_Get(p, 'y')::float, ST_Y(s.pt), 0.0001)
+                   ) as elevation
+            FROM samples s
         )
-        SELECT s.fraction, ST_X(s.pt) as lng, ST_Y(s.pt) as lat
-        FROM samples s",
+        SELECT fraction, lng, lat, elevation FROM elevations ORDER BY fraction",
     ).bind(catalog_id).bind(&wkb).bind(req.num_samples)
     .fetch_all(store.pool()).await?;
 
@@ -217,6 +236,7 @@ async fn elevation_profile(
         "fraction": r.get::<f64, _>("fraction"),
         "lng": r.get::<f64, _>("lng"),
         "lat": r.get::<f64, _>("lat"),
+        "elevation": r.get::<Option<f64>, _>("elevation"),
     })).collect();
 
     Ok(Json(serde_json::json!({"profile": profile})))

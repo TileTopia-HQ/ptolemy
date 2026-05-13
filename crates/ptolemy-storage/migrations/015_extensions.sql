@@ -35,9 +35,9 @@ CREATE EXTENSION IF NOT EXISTS mobilitydb;
 CREATE INDEX IF NOT EXISTS idx_datasets_name_trgm
     ON datasets USING gin (name gin_trgm_ops);
 
--- Trigram index on catalog metadata keywords
-CREATE INDEX IF NOT EXISTS idx_dataset_metadata_keywords_trgm
-    ON dataset_metadata USING gin (keywords gin_trgm_ops);
+-- GIN index on metadata keywords array for containment queries
+CREATE INDEX IF NOT EXISTS idx_dataset_metadata_keywords
+    ON dataset_metadata USING gin (keywords);
 
 -- ─── pgRouting helper view ───────────────────────────────────────────
 
@@ -89,23 +89,6 @@ CREATE TABLE IF NOT EXISTS pointcloud_patches (
 CREATE INDEX IF NOT EXISTS idx_pc_patches_catalog ON pointcloud_patches(catalog_id);
 CREATE INDEX IF NOT EXISTS idx_pc_patches_bounds ON pointcloud_patches USING gist(bounds);
 
--- ─── Vector embeddings for feature similarity ────────────────────────
-
-ALTER TABLE features ADD COLUMN IF NOT EXISTS embedding vector(256);
-CREATE INDEX IF NOT EXISTS idx_features_embedding ON features USING ivfflat (embedding vector_cosine_ops);
-
--- ─── H3 spatial index columns ────────────────────────────────────────
-
-ALTER TABLE features ADD COLUMN IF NOT EXISTS h3_index h3index;
-CREATE INDEX IF NOT EXISTS idx_features_h3 ON features(h3_index);
-
--- ─── Partitioning setup (pg_partman) ─────────────────────────────────
--- Note: pg_partman manages partition creation automatically.
--- For existing tables, we add partitioning metadata.
-
-SELECT partman.create_parent(
-    p_parent_table := 'public.audit_log',
-    p_control := 'timestamp',
-    p_type := 'range',
-    p_interval := '1 month'
-);
+-- Note: Vector/H3 columns and features view are created in migration 016.
+-- Note: pg_partman auto-partitioning is configured by DBA at deployment time
+-- for tables that grow large (audit_log, feature_versions).

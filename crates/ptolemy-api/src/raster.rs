@@ -123,6 +123,8 @@ async fn list_tiles(
 struct UploadTileRequest {
     zoom_level: i32,
     bounds_wkb_hex: String,
+    /// Raster data in WKB hex format (as produced by ST_AsWKB or raster2pgsql)
+    rast_hex: String,
 }
 
 async fn upload_tile(
@@ -131,11 +133,12 @@ async fn upload_tile(
     Json(req): Json<UploadTileRequest>,
 ) -> Result<StatusCode, RasterError> {
     let id = Uuid::now_v7();
-    let bounds_wkb = hex::decode(&req.bounds_wkb_hex).map_err(|_| RasterError::Bad("invalid hex".into()))?;
+    let bounds_wkb = hex::decode(&req.bounds_wkb_hex).map_err(|_| RasterError::Bad("invalid bounds hex".into()))?;
+    let rast_bytes = hex::decode(&req.rast_hex).map_err(|_| RasterError::Bad("invalid raster hex".into()))?;
     sqlx::query(
-        "INSERT INTO raster_tiles (id, catalog_id, bounds, zoom_level)
-         VALUES ($1, $2, ST_GeomFromWKB($3, 4326), $4)",
-    ).bind(id).bind(catalog_id).bind(&bounds_wkb).bind(req.zoom_level)
+        "INSERT INTO raster_tiles (id, catalog_id, bounds, zoom_level, rast)
+         VALUES ($1, $2, ST_GeomFromWKB($3, 4326), $4, $5::raster)",
+    ).bind(id).bind(catalog_id).bind(&bounds_wkb).bind(req.zoom_level).bind(&rast_bytes)
     .execute(store.pool()).await?;
     Ok(StatusCode::CREATED)
 }

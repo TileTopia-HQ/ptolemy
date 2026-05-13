@@ -71,6 +71,8 @@ impl PgStore {
         sqlx::raw_sql(sql_014).execute(&self.pool).await?;
         let sql_015 = include_str!("../migrations/015_extensions.sql");
         sqlx::raw_sql(sql_015).execute(&self.pool).await?;
+        let sql_016 = include_str!("../migrations/016_features_view.sql");
+        sqlx::raw_sql(sql_016).execute(&self.pool).await?;
         Ok(())
     }
 
