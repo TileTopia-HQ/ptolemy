@@ -69,6 +69,8 @@ impl PgStore {
         sqlx::raw_sql(sql_013).execute(&self.pool).await?;
         let sql_014 = include_str!("../migrations/014_cartography.sql");
         sqlx::raw_sql(sql_014).execute(&self.pool).await?;
+        let sql_015 = include_str!("../migrations/015_extensions.sql");
+        sqlx::raw_sql(sql_015).execute(&self.pool).await?;
         Ok(())
     }
 

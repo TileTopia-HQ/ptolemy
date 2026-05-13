@@ -8,6 +8,29 @@ Ptolemy provides versioned spatial data management — branch, commit, diff, and
 
 Enterprise GIS users are locked into proprietary platforms (Esri, Hexagon) primarily because of versioned geodatabase workflows — multi-user editing with conflict detection, branching, and audit trails. Ptolemy brings these capabilities to the open-source stack.
 
+## Third-Party Integrations
+
+Ptolemy leverages the best battle-tested PostgreSQL extensions and standards:
+
+| Extension | Purpose |
+|-----------|---------|
+| **pgRouting** | Graph routing: Dijkstra, A*, TSP, isochrones, connected components |
+| **PostGIS Topology** | Native topology primitives (faces, edges, nodes), validation |
+| **SFCGAL** | 3D geometry operations: extrude, volume, Minkowski sum, straight skeleton |
+| **h3-pg** | Uber H3 hexagonal spatial indexing, aggregation, compaction |
+| **pg_partman** | Automatic time-based partitioning (audit logs) |
+| **pgvector** | Vector similarity search, feature deduplication, k-means clustering |
+| **pg_trgm** | Fuzzy text search for data catalog |
+| **pointcloud** | LiDAR/point cloud storage and spatial queries |
+| **MobilityDB** | Moving object trajectories, speed/distance analysis |
+
+### Standards Implemented
+
+- **STAC 1.0** — SpatioTemporal Asset Catalog for raster discovery
+- **OGC Tiles** — Standard tile matrix sets (WebMercatorQuad, WorldCRS84Quad)
+- **CQL2** — Common Query Language for spatial/attribute filtering
+- **OGC API - Features** — Part 1 & 2 compliant
+
 ### Key Features (Roadmap)
 
 | Version | Milestone | Status |
@@ -244,6 +267,74 @@ ptolemy serve --database-url postgres://localhost/ptolemy
 | GET | `/api/v1/labels/{id}` | Get label rule |
 | PUT | `/api/v1/labels/{id}` | Update label |
 | DELETE | `/api/v1/labels/{id}` | Delete label |
+| **PostGIS Topology** | | |
+| GET | `/api/v1/datasets/{id}/topologies` | List topologies |
+| POST | `/api/v1/datasets/{id}/topologies` | Create topology |
+| POST | `/api/v1/topologies/{name}/validate` | Validate topology |
+| GET | `/api/v1/topologies/{name}/faces` | List faces |
+| GET | `/api/v1/topologies/{name}/edges` | List edges |
+| GET | `/api/v1/topologies/{name}/nodes` | List nodes |
+| POST | `/api/v1/topologies/{name}/add-face` | Add face |
+| POST | `/api/v1/topologies/{name}/simplify` | Simplify topology |
+| **SFCGAL 3D** | | |
+| POST | `/api/v1/branches/{id}/3d/extrude` | Extrude 2D → 3D |
+| POST | `/api/v1/branches/{id}/3d/volume` | Compute volume |
+| POST | `/api/v1/branches/{id}/3d/intersection` | 3D intersection |
+| POST | `/api/v1/branches/{id}/3d/straight-skeleton` | Straight skeleton |
+| POST | `/api/v1/branches/{id}/3d/minkowski-sum` | Minkowski sum |
+| POST | `/api/v1/branches/{id}/3d/tesselate` | Tesselation |
+| POST | `/api/v1/branches/{id}/3d/visibility` | Visibility/line-of-sight |
+| **H3 Indexing** | | |
+| POST | `/api/v1/branches/{id}/h3/index` | Index features with H3 |
+| GET | `/api/v1/branches/{id}/h3/hexagons` | Get covering hexagons |
+| GET | `/api/v1/branches/{id}/h3/aggregate` | Aggregate by hex cell |
+| GET | `/api/v1/branches/{id}/h3/neighbors` | K-ring neighbors |
+| POST | `/api/v1/branches/{id}/h3/compact` | Compact hex set |
+| GET | `/api/v1/h3/cell?lng=&lat=` | Point → H3 cell |
+| GET | `/api/v1/h3/boundary?cell=` | Cell → boundary polygon |
+| **Vector Similarity** | | |
+| POST | `/api/v1/branches/{id}/similarity/search` | Similarity search |
+| GET | `/api/v1/branches/{id}/similarity/duplicates` | Find duplicates |
+| POST | `/api/v1/branches/{id}/similarity/embed` | Generate embeddings |
+| POST | `/api/v1/branches/{id}/similarity/cluster` | K-means clustering |
+| **Point Cloud** | | |
+| GET | `/api/v1/datasets/{id}/pointclouds` | List point cloud catalogs |
+| POST | `/api/v1/datasets/{id}/pointclouds` | Create catalog |
+| GET | `/api/v1/pointclouds/{id}` | Get catalog |
+| GET | `/api/v1/pointclouds/{id}/patches` | List patches |
+| POST | `/api/v1/pointclouds/{id}/patches` | Add patch |
+| POST | `/api/v1/pointclouds/{id}/query` | Spatial query |
+| GET | `/api/v1/pointclouds/{id}/stats` | Catalog stats |
+| POST | `/api/v1/pointclouds/{id}/profile` | Elevation profile |
+| **Trajectories** | | |
+| GET | `/api/v1/datasets/{id}/trajectories` | List trajectories |
+| POST | `/api/v1/datasets/{id}/trajectories` | Create trajectory |
+| GET | `/api/v1/trajectories/{id}` | Get trajectory |
+| GET | `/api/v1/trajectories/{id}/at?timestamp=` | Position at time |
+| GET | `/api/v1/trajectories/{id}/speed` | Speed analysis |
+| GET | `/api/v1/trajectories/{id}/distance` | Distance/duration |
+| POST | `/api/v1/trajectories/{id}/simplify` | Simplify trajectory |
+| POST | `/api/v1/datasets/{id}/trajectories/nearest` | Nearest approach |
+| **CQL2 + OGC Tiles** | | |
+| POST | `/api/v1/branches/{id}/features/filter` | CQL2 filter query |
+| GET | `/api/v1/tiles/tileMatrixSets` | List tile matrix sets |
+| GET | `/api/v1/tiles/tileMatrixSets/{tms}` | Get tile matrix set |
+| GET | `/api/v1/datasets/{id}/tiles/{tms}/{z}/{x}/{y}` | OGC vector tile |
+| **STAC** | | |
+| GET | `/api/v1/stac` | STAC root catalog |
+| GET | `/api/v1/stac/collections` | STAC collections |
+| GET | `/api/v1/stac/collections/{id}` | STAC collection |
+| GET | `/api/v1/stac/collections/{id}/items` | STAC items |
+| GET | `/api/v1/stac/collections/{id}/items/{item_id}` | STAC item |
+| GET | `/api/v1/stac/search` | STAC search |
+| **Format & CRS** | | |
+| GET | `/api/v1/branches/{id}/export/geojson` | Export GeoJSON |
+| GET | `/api/v1/branches/{id}/export/csv` | Export CSV |
+| GET | `/api/v1/branches/{id}/export/flatgeobuf` | Export FlatGeobuf |
+| POST | `/api/v1/branches/{id}/transform` | Transform single geometry CRS |
+| POST | `/api/v1/branches/{id}/reproject` | Reproject all features |
+| GET | `/api/v1/crs/search?q=` | Search coordinate systems |
+| GET | `/api/v1/crs/{srid}` | Get CRS details |
 
 ## Building
 

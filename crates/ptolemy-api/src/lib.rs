@@ -7,9 +7,12 @@ pub mod auth;
 pub mod cartography;
 pub mod catalog;
 pub mod conflicts;
+pub mod cql2;
 pub mod delivery;
 pub mod domains;
+pub mod formats;
 pub mod grpc;
+pub mod h3;
 pub mod jobs;
 pub mod locks;
 pub mod lrs;
@@ -17,16 +20,22 @@ pub mod metrics;
 pub mod network;
 pub mod ogc;
 pub mod oidc;
+pub mod pointcloud;
 pub mod quality;
 pub mod raster;
 pub mod rate_limit;
 pub mod relationships;
 pub mod review;
 pub mod routes;
+pub mod sfcgal;
 pub mod sse;
+pub mod stac;
 pub mod sync;
 pub mod telemetry;
 pub mod tenant;
+pub mod topology;
+pub mod trajectory;
+pub mod vector_search;
 pub mod webhook;
 pub mod ws;
 
@@ -75,6 +84,15 @@ pub fn app(state: AppState) -> Router {
         .nest("/api/v1", domains::domain_routes())
         .nest("/api/v1", relationships::relationship_routes())
         .nest("/api/v1", cartography::cartography_routes())
+        .nest("/api/v1", topology::topology_routes())
+        .nest("/api/v1", sfcgal::sfcgal_routes())
+        .nest("/api/v1", h3::h3_routes())
+        .nest("/api/v1", vector_search::vector_routes())
+        .nest("/api/v1", pointcloud::pointcloud_routes())
+        .nest("/api/v1", trajectory::trajectory_routes())
+        .nest("/api/v1", cql2::cql2_routes())
+        .nest("/api/v1", stac::stac_routes())
+        .nest("/api/v1", formats::format_routes())
         .nest("/api/v1", sse::sse_routes(sse_broadcast))
         .merge(oidc::oidc_routes())
         .nest("/ws", ws::ws_routes(event_bus))
