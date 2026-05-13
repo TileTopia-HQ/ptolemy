@@ -21,6 +21,7 @@ pub mod network;
 pub mod ogc;
 pub mod oidc;
 pub mod pointcloud;
+pub mod qgis;
 pub mod quality;
 pub mod raster;
 pub mod rate_limit;
@@ -93,6 +94,7 @@ pub fn app(state: AppState) -> Router {
         .nest("/api/v1", cql2::cql2_routes())
         .nest("/api/v1", stac::stac_routes())
         .nest("/api/v1", formats::format_routes())
+        .nest("/api/v1", qgis::qgis_routes())
         .nest("/api/v1", sse::sse_routes(sse_broadcast))
         .merge(oidc::oidc_routes())
         .nest("/ws", ws::ws_routes(event_bus))

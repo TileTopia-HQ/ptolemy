@@ -4,4 +4,7 @@
 
 pub mod postgres;
 
-pub use postgres::{AuditEntry, ConflictInfo, FeatureLock, MergeResult, PgStore, StoreError};
+pub use postgres::{
+    AuditEntry, ConflictInfo, FeatureLock, MergeResult, PgStore, StoreError, TopologyMergeResult,
+    TopologyRepair, TopologyViolation,
+};
