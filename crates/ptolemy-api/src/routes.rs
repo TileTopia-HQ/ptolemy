@@ -4,9 +4,9 @@
 
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use ptolemy_core::branch::Branch;
@@ -29,8 +29,16 @@ pub fn v1_routes() -> Router<AppState> {
         .route("/branches/{id}", get(get_branch))
         .route("/branches/{id}/history", get(get_branch_history))
         .route("/branches/{id}/features", get(list_features))
+        // Spatial queries
+        .route("/branches/{id}/features/bbox", get(features_bbox))
+        .route("/branches/{id}/features/intersects", post(features_intersects))
+        .route("/branches/{id}/features/within", post(features_within))
+        .route("/branches/{id}/features/count", get(features_count))
+        // MVT tiles
+        .route("/branches/{id}/tiles/{z}/{x}/{y}.mvt", get(mvt_tile))
         // Commits
         .route("/branches/{id}/commit", post(commit))
+        .route("/branches/{id}/batch", post(batch_commit))
         // Merge
         .route("/branches/{target_id}/merge/{source_id}", post(merge_branches))
         // Diff
@@ -150,12 +158,198 @@ async fn get_branch_history(
 
 // ─── Features ───────────────────────────────────────────────────────
 
+#[derive(Deserialize)]
+struct FeatureListParams {
+    /// Cursor for pagination (feature UUID)
+    #[serde(default)]
+    cursor: Option<Uuid>,
+    /// Page size (default 100, max 10000)
+    #[serde(default = "default_limit")]
+    limit: i64,
+}
+
+fn default_limit() -> i64 {
+    100
+}
+
 async fn list_features(
     State(store): State<AppState>,
     Path(id): Path<Uuid>,
+    Query(params): Query<FeatureListParams>,
+) -> Result<Json<FeaturePage>, AppError> {
+    let limit = params.limit.min(10000).max(1);
+    let features = store
+        .list_features_paginated(id, params.cursor, limit)
+        .await?;
+    let next_cursor = if features.len() as i64 == limit {
+        features.last().map(|f| f.id)
+    } else {
+        None
+    };
+    Ok(Json(FeaturePage {
+        features,
+        next_cursor,
+    }))
+}
+
+#[derive(Serialize)]
+struct FeaturePage {
+    features: Vec<ptolemy_core::Feature>,
+    next_cursor: Option<Uuid>,
+}
+
+// ─── Spatial Queries ────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct BboxParams {
+    min_x: f64,
+    min_y: f64,
+    max_x: f64,
+    max_y: f64,
+    #[serde(default = "default_limit")]
+    limit: i64,
+}
+
+async fn features_bbox(
+    State(store): State<AppState>,
+    Path(branch_id): Path<Uuid>,
+    Query(params): Query<BboxParams>,
 ) -> Result<Json<Vec<ptolemy_core::Feature>>, AppError> {
-    let features = store.list_features_at_head(id).await?;
+    let limit = params.limit.min(10000).max(1);
+    let features = store
+        .features_in_bbox(branch_id, params.min_x, params.min_y, params.max_x, params.max_y, limit)
+        .await?;
     Ok(Json(features))
+}
+
+#[derive(Deserialize)]
+struct SpatialFilterRequest {
+    /// GeoJSON geometry to test against
+    geometry: serde_json::Value,
+    #[serde(default = "default_limit")]
+    limit: i64,
+}
+
+async fn features_intersects(
+    State(store): State<AppState>,
+    Path(branch_id): Path<Uuid>,
+    Json(req): Json<SpatialFilterRequest>,
+) -> Result<Json<Vec<ptolemy_core::Feature>>, AppError> {
+    let geojson_str = serde_json::to_string(&req.geometry)
+        .map_err(|e| AppError::BadRequest(format!("invalid geometry: {e}")))?;
+    let limit = req.limit.min(10000).max(1);
+    let features = store
+        .features_intersecting(branch_id, &geojson_str, limit)
+        .await?;
+    Ok(Json(features))
+}
+
+async fn features_within(
+    State(store): State<AppState>,
+    Path(branch_id): Path<Uuid>,
+    Json(req): Json<SpatialFilterRequest>,
+) -> Result<Json<Vec<ptolemy_core::Feature>>, AppError> {
+    let geojson_str = serde_json::to_string(&req.geometry)
+        .map_err(|e| AppError::BadRequest(format!("invalid geometry: {e}")))?;
+    let limit = req.limit.min(10000).max(1);
+    let features = store
+        .features_within(branch_id, &geojson_str, limit)
+        .await?;
+    Ok(Json(features))
+}
+
+async fn features_count(
+    State(store): State<AppState>,
+    Path(branch_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let count = store.count_features_at_head(branch_id).await?;
+    Ok(Json(serde_json::json!({"count": count})))
+}
+
+// ─── MVT Tiles ──────────────────────────────────────────────────────
+
+async fn mvt_tile(
+    State(store): State<AppState>,
+    Path((branch_id, z, x, y)): Path<(Uuid, u32, u32, u32)>,
+) -> Result<Response, AppError> {
+    let tile_data = store.get_mvt_tile(branch_id, z, x, y).await?;
+    Ok((
+        StatusCode::OK,
+        [
+            ("content-type", "application/vnd.mapbox-vector-tile"),
+            ("cache-control", "public, max-age=300"),
+        ],
+        tile_data,
+    )
+        .into_response())
+}
+
+// ─── Batch Operations ───────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct BatchCommitRequest {
+    message: String,
+    author: String,
+    operations: Vec<DiffOpRequest>,
+}
+
+async fn batch_commit(
+    State(store): State<AppState>,
+    Path(branch_id): Path<Uuid>,
+    Json(req): Json<BatchCommitRequest>,
+) -> Result<(StatusCode, Json<BatchCommitResponse>), AppError> {
+    let ops: Result<Vec<DiffOp>, AppError> = req
+        .operations
+        .into_iter()
+        .map(|op| match op {
+            DiffOpRequest::Insert {
+                feature_id,
+                geometry_wkb_hex,
+                properties,
+            } => {
+                let wkb = hex::decode(&geometry_wkb_hex)
+                    .map_err(|e| AppError::BadRequest(format!("invalid hex: {e}")))?;
+                Ok(DiffOp::Insert {
+                    feature_id: feature_id.unwrap_or_else(Uuid::now_v7),
+                    geometry_wkb: wkb,
+                    properties,
+                })
+            }
+            DiffOpRequest::Update {
+                feature_id,
+                geometry_wkb_hex,
+                properties,
+            } => {
+                let wkb = geometry_wkb_hex
+                    .map(|h| hex::decode(&h))
+                    .transpose()
+                    .map_err(|e| AppError::BadRequest(format!("invalid hex: {e}")))?;
+                Ok(DiffOp::Update {
+                    feature_id,
+                    geometry_wkb: wkb,
+                    properties,
+                })
+            }
+            DiffOpRequest::Delete { feature_id } => Ok(DiffOp::Delete { feature_id }),
+        })
+        .collect();
+
+    let ops = ops?;
+    let op_count = ops.len();
+    let changeset = store.commit(branch_id, &req.message, &req.author, &ops).await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(BatchCommitResponse {
+            changeset,
+            operations_applied: op_count,
+        }),
+    ))
+}
+
+#[derive(Serialize)]
+struct BatchCommitResponse {
+    changeset: ptolemy_core::changeset::Changeset,
+    operations_applied: usize,
 }
 
 // ─── Commit ─────────────────────────────────────────────────────────

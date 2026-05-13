@@ -31,3 +31,7 @@ geozero = { version = "0.14", features = ["with-wkb", "with-geojson"] }
 time = { version = "0.3", features = ["serde"] }
 tower-http = { version = "0.6", features = ["trace", "cors"] }
 jsonwebtoken = "9"
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+openidconnect = { version = "4", features = ["reqwest-blocking"] }
+reqwest = { version = "0.12", features = ["json"] }

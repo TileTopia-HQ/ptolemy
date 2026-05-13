@@ -5,7 +5,6 @@
 //! JWT authentication and RBAC middleware.
 
 use axum::{
-    body::Body,
     extract::Request,
     http::{header, StatusCode},
     middleware::Next,
@@ -14,7 +13,6 @@ use axum::{
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// JWT claims structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -168,4 +166,14 @@ pub fn generate_token(secret: &str, sub: &str, name: &str, roles: Vec<Role>, ttl
         &EncodingKey::from_secret(secret.as_bytes()),
     )
     .unwrap()
+}
+
+/// Generate a JWT token using the configured secret (for OIDC callback).
+/// Returns Err if PTOLEMY_JWT_SECRET is not set.
+pub fn generate_token_from_env(sub: &str, name: &str, roles: &[Role]) -> Result<String, String> {
+    let config = AuthConfig::from_env();
+    if !config.enabled {
+        return Err("JWT secret not configured (set PTOLEMY_JWT_SECRET)".into());
+    }
+    Ok(generate_token(&config.secret, sub, name, roles.to_vec(), 86400))
 }

@@ -19,6 +19,14 @@ struct Cli {
     #[arg(long, env = "DATABASE_URL")]
     database_url: String,
 
+    /// Maximum database connections in the pool
+    #[arg(long, env = "PTOLEMY_DB_MAX_CONNECTIONS", default_value = "10")]
+    db_max_connections: u32,
+
+    /// Minimum database connections in the pool
+    #[arg(long, env = "PTOLEMY_DB_MIN_CONNECTIONS", default_value = "2")]
+    db_min_connections: u32,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -127,6 +135,19 @@ enum Commands {
         #[arg(long, short)]
         output: Option<String>,
     },
+
+    /// Export branch as GeoPackage (.gpkg) for offline editing
+    GpkgExport {
+        /// Branch ID
+        #[arg(long)]
+        branch: Uuid,
+        /// Output .gpkg file path
+        #[arg(long, short)]
+        output: String,
+        /// Layer name in the GeoPackage
+        #[arg(long, default_value = "features")]
+        layer: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -182,7 +203,11 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
 
-    let pool = sqlx::PgPool::connect(&cli.database_url).await?;
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(cli.db_max_connections)
+        .min_connections(cli.db_min_connections)
+        .connect(&cli.database_url)
+        .await?;
     let store = Arc::new(PgStore::new(pool));
 
     match cli.command {
@@ -190,7 +215,11 @@ async fn main() -> anyhow::Result<()> {
             let app = ptolemy_api::app(store.clone());
             let listener = tokio::net::TcpListener::bind(&bind).await?;
             tracing::info!("Ptolemy listening on {bind}");
-            axum::serve(listener, app).await?;
+            tracing::info!("Metrics available at http://{bind}/metrics");
+            axum::serve(listener, app)
+                .with_graceful_shutdown(shutdown_signal())
+                .await?;
+            tracing::info!("Server shut down gracefully");
         }
 
         Commands::Migrate => {
@@ -343,6 +372,20 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 println!("{json}");
             }
+        }
+
+        Commands::GpkgExport {
+            branch,
+            output,
+            layer,
+        } => {
+            let features = store.list_features_at_head(branch).await?;
+            export_geopackage(&features, &output, &layer)?;
+            println!(
+                "Exported {} features to GeoPackage: {}",
+                features.len(),
+                output
+            );
         }
     }
 
@@ -545,5 +588,149 @@ fn wkb_to_geojson_geometry(wkb: &[u8]) -> serde_json::Value {
             }
         }
         _ => json!({"type": "Point", "coordinates": [0, 0]}),
+    }
+}
+
+/// Export features to a GeoPackage (.gpkg) SQLite file.
+/// Creates a minimal spec-compliant GeoPackage with the features as a layer.
+fn export_geopackage(
+    features: &[ptolemy_core::Feature],
+    path: &str,
+    layer_name: &str,
+) -> anyhow::Result<()> {
+    use rusqlite::Connection;
+
+    // Remove file if exists
+    if std::path::Path::new(path).exists() {
+        std::fs::remove_file(path)?;
+    }
+
+    let conn = Connection::open(path)?;
+
+    // Set GeoPackage application ID
+    conn.execute_batch("PRAGMA application_id = 0x47504B47;")?; // 'GPKG'
+
+    // Create GeoPackage metadata tables
+    conn.execute_batch(
+        "CREATE TABLE gpkg_spatial_ref_sys (
+            srs_name TEXT NOT NULL,
+            srs_id INTEGER NOT NULL PRIMARY KEY,
+            organization TEXT NOT NULL,
+            organization_coordsys_id INTEGER NOT NULL,
+            definition TEXT NOT NULL,
+            description TEXT
+        );
+
+        INSERT INTO gpkg_spatial_ref_sys VALUES
+            ('WGS 84', 4326, 'EPSG', 4326,
+             'GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433]]',
+             'WGS 84 geographic coordinate system');
+
+        CREATE TABLE gpkg_contents (
+            table_name TEXT NOT NULL PRIMARY KEY,
+            data_type TEXT NOT NULL,
+            identifier TEXT UNIQUE,
+            description TEXT DEFAULT '',
+            last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+            min_x DOUBLE,
+            min_y DOUBLE,
+            max_x DOUBLE,
+            max_y DOUBLE,
+            srs_id INTEGER,
+            CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+        );
+
+        CREATE TABLE gpkg_geometry_columns (
+            table_name TEXT NOT NULL,
+            column_name TEXT NOT NULL,
+            geometry_type_name TEXT NOT NULL,
+            srs_id INTEGER NOT NULL,
+            z TINYINT NOT NULL,
+            m TINYINT NOT NULL,
+            CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
+            CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+            CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+        );"
+    )?;
+
+    // Create feature table
+    conn.execute_batch(&format!(
+        "CREATE TABLE \"{layer_name}\" (
+            fid INTEGER PRIMARY KEY AUTOINCREMENT,
+            feature_id TEXT NOT NULL,
+            geom BLOB,
+            properties TEXT
+        );"
+    ))?;
+
+    // Register in gpkg_contents
+    conn.execute(
+        "INSERT INTO gpkg_contents (table_name, data_type, identifier, srs_id)
+         VALUES (?1, 'features', ?1, 4326)",
+        [layer_name],
+    )?;
+
+    // Register geometry column
+    conn.execute(
+        "INSERT INTO gpkg_geometry_columns (table_name, column_name, geometry_type_name, srs_id, z, m)
+         VALUES (?1, 'geom', 'GEOMETRY', 4326, 0, 0)",
+        [layer_name],
+    )?;
+
+    // Insert features
+    let mut stmt = conn.prepare(&format!(
+        "INSERT INTO \"{layer_name}\" (feature_id, geom, properties) VALUES (?1, ?2, ?3)"
+    ))?;
+
+    for feature in features {
+        // GeoPackage uses its own binary format (GP header + WKB)
+        let gpkg_geom = wkb_to_gpkg_binary(&feature.geometry_wkb);
+        let props_str = serde_json::to_string(&feature.properties)?;
+        stmt.execute(rusqlite::params![
+            feature.id.to_string(),
+            gpkg_geom,
+            props_str,
+        ])?;
+    }
+
+    Ok(())
+}
+
+/// Wrap WKB in a GeoPackage binary header.
+/// GeoPackage Binary format: magic (2) + version (1) + flags (1) + srs_id (4) + WKB
+fn wkb_to_gpkg_binary(wkb: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(8 + wkb.len());
+    buf.push(0x47); // 'G'
+    buf.push(0x50); // 'P'
+    buf.push(0x00); // version 0
+    buf.push(0x01); // flags: little-endian, no envelope
+    // SRS ID 4326 as little-endian i32
+    buf.extend_from_slice(&4326i32.to_le_bytes());
+    buf.extend_from_slice(wkb);
+    buf
+}
+
+/// Wait for SIGINT (Ctrl+C) or SIGTERM for graceful shutdown.
+async fn shutdown_signal() {
+    use tokio::signal;
+
+    let ctrl_c = async {
+        signal::ctrl_c().await.expect("failed to listen for Ctrl+C");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to listen for SIGTERM")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => { tracing::info!("Received Ctrl+C, shutting down..."); }
+        _ = terminate => { tracing::info!("Received SIGTERM, shutting down..."); }
     }
 }

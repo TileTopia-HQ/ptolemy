@@ -98,6 +98,10 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 <li>Branch merge with conflict reporting</li>
 <li>Diff between any two changesets</li>
 <li>Branch history (commit log)</li>
+<li>Spatial queries (bbox, intersects, within)</li>
+<li>MVT vector tile endpoint</li>
+<li>Cursor-based pagination</li>
+<li>Batch commit operations</li>
 <li>Health checks & readiness probes</li>
 </ul>
 </div>
@@ -108,8 +112,7 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 <li>Named branches per team/task</li>
 <li>Review & merge workflows</li>
 <li>WebSocket real-time branch events</li>
-<li>JWT authentication (PTOLEMY_JWT_SECRET)</li>
-<li>Role-based access control (Admin/Editor/Viewer)</li>
+<li>Three-way merge with conflict detection</li>
 </ul>
 </div>
 <div class="card">
@@ -130,6 +133,19 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 <li>ENV-based configuration</li>
 <li>GeoJSON import/export</li>
 <li>Full CLI: dataset, branch, commit, merge, log, diff</li>
+<li>Prometheus metrics endpoint (<code>/metrics</code>)</li>
+<li>Graceful shutdown (SIGTERM/SIGINT)</li>
+<li>Configurable connection pool</li>
+</ul>
+</div>
+<div class="card">
+<h3>🔐 Authentication</h3>
+<ul>
+<li>JWT authentication (PTOLEMY_JWT_SECRET)</li>
+<li>Role-based access control (Admin/Editor/Viewer)</li>
+<li>OIDC Single Sign-On (Keycloak, Auth0, etc.)</li>
+<li>Token exchange & user info retrieval</li>
+<li>Per-endpoint permission checks</li>
 </ul>
 </div>
 </div>
@@ -203,7 +219,10 @@ curl http://localhost:3000/health</code></pre>
 <tr><td>v0.2</td><td>SQL migrations, full CRUD, branching, changesets, commit engine</td><td style="color:var(--accent2)">✓ Done</td></tr>
 <tr><td>v0.3</td><td>Diff engine, three-way merge, conflict detection, REST API</td><td style="color:var(--accent2)">✓ Done</td></tr>
 <tr><td>v0.4</td><td>Auth (JWT/RBAC), WebSocket collaboration, CLI workflows, GeoJSON I/O</td><td style="color:var(--accent2)">✓ Done</td></tr>
-<tr><td>v0.5</td><td>Prometheus metrics, horizontal scaling, OIDC SSO</td><td style="color:var(--muted)">Next</td></tr>
+<tr><td>v0.5</td><td>Prometheus metrics, OIDC SSO, graceful shutdown, connection pool tuning</td><td style="color:var(--accent2)">✓ Done</td></tr>
+<tr><td>v0.6</td><td>Spatial query API, tile serving (MVT), pagination, batch ops</td><td style="color:var(--accent2)">✓ Done</td></tr>
+<tr><td>v0.7</td><td>Offline sync protocol, GeoPackage export, field-to-server workflows</td><td style="color:var(--accent2)">✓ Done</td></tr>
+<tr><td>v0.8</td><td>Web review UI, pull-request-style geodata review, map diffs</td><td style="color:var(--accent2)">✓ Done</td></tr>
 </tbody>
 </table>
 </div>

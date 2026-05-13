@@ -10,10 +10,15 @@ ptolemy-storage = { path = "../ptolemy-storage" }
 axum.workspace = true
 hex = "0.4"
 jsonwebtoken = { workspace = true }
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+openidconnect.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
+urlencoding = "2"
 uuid.workspace = true

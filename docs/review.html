@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ptolemy — Review</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--heading:#f0f6fc;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--muted:#8b949e}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6;display:flex;flex-direction:column;min-height:100vh}
+a{color:var(--accent);text-decoration:none;cursor:pointer}a:hover{text-decoration:underline}
+header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px}
+header h1{font-size:1.3rem;color:var(--heading)}
+header nav{display:flex;gap:12px}
+main{flex:1;max-width:1200px;margin:0 auto;padding:24px;width:100%}
+.btn{padding:8px 16px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-size:.9rem}
+.btn:hover{border-color:var(--accent)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-success{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-danger{background:var(--red);color:#fff;border-color:var(--red)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:600}
+.badge-open{background:#1f6feb33;color:var(--accent)}
+.badge-approved{background:#23863633;color:var(--green)}
+.badge-merged{background:#6e40c933;color:#a371f7}
+.badge-closed{background:#f8514933;color:var(--red)}
+h2{color:var(--heading);margin-bottom:16px;font-size:1.5rem}
+h3{color:var(--heading);margin-bottom:8px}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;margin-bottom:4px;color:var(--muted);font-size:.85rem}
+.form-group input,.form-group textarea,.form-group select{width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem}
+.form-group textarea{min-height:80px;resize:vertical}
+.comment{border-left:3px solid var(--border);padding:8px 12px;margin:8px 0}
+.comment .author{color:var(--accent);font-weight:600;font-size:.85rem}
+.comment .body{margin-top:4px}
+.diff-insert{color:var(--green)}
+.diff-delete{color:var(--red)}
+.diff-update{color:var(--accent)}
+#map{height:400px;border-radius:8px;margin:16px 0;border:1px solid var(--border)}
+.hidden{display:none}
+.flex{display:flex;gap:12px;align-items:center}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.mr-list-item{display:flex;justify-content:space-between;align-items:center;padding:12px;cursor:pointer}
+.mr-list-item:hover{background:#1c2128}
+.meta{color:var(--muted);font-size:.8rem}
+</style>
+</head>
+<body>
+<header>
+<h1>🗺️ Ptolemy Review</h1>
+<nav>
+<a onclick="showList()">Reviews</a>
+<a onclick="showCreate()">New Review</a>
+</nav>
+</header>
+
+<main>
+<!-- Review List -->
+<section id="view-list">
+<div class="flex-between">
+<h2>Merge Requests</h2>
+<div class="flex">
+<select id="filter-dataset" class="btn" onchange="loadReviews()">
+<option value="">Select dataset...</option>
+</select>
+<select id="filter-status" class="btn" onchange="loadReviews()">
+<option value="">All statuses</option>
+<option value="open">Open</option>
+<option value="approved">Approved</option>
+<option value="merged">Merged</option>
+<option value="closed">Closed</option>
+</select>
+</div>
+</div>
+<div id="review-list"></div>
+</section>
+
+<!-- Create Review -->
+<section id="view-create" class="hidden">
+<h2>New Merge Request</h2>
+<div class="card">
+<div class="form-group">
+<label>Dataset</label>
+<select id="create-dataset" onchange="loadBranches()"></select>
+</div>
+<div class="form-group">
+<label>Source Branch (changes to merge)</label>
+<select id="create-source"></select>
+</div>
+<div class="form-group">
+<label>Target Branch (merge into)</label>
+<select id="create-target"></select>
+</div>
+<div class="form-group">
+<label>Title</label>
+<input id="create-title" placeholder="Brief description of changes" />
+</div>
+<div class="form-group">
+<label>Description</label>
+<textarea id="create-desc" placeholder="Detailed description..."></textarea>
+</div>
+<div class="form-group">
+<label>Author</label>
+<input id="create-author" placeholder="Your name" />
+</div>
+<button class="btn btn-primary" onclick="submitReview()">Create Merge Request</button>
+</div>
+</section>
+
+<!-- Review Detail -->
+<section id="view-detail" class="hidden">
+<div class="flex-between">
+<h2 id="detail-title"></h2>
+<span id="detail-badge"></span>
+</div>
+<p id="detail-desc" style="margin:8px 0;color:var(--muted)"></p>
+<p class="meta" id="detail-meta"></p>
+
+<div class="flex" style="margin:16px 0">
+<button class="btn btn-success" id="btn-approve" onclick="approveReview()">Approve</button>
+<button class="btn btn-primary" id="btn-merge" onclick="mergeReview()">Merge</button>
+<button class="btn btn-danger" id="btn-close" onclick="closeReview()">Close</button>
+<button class="btn" onclick="showList()">← Back</button>
+</div>
+
+<h3>Map Diff</h3>
+<div id="map"></div>
+
+<h3>Changes</h3>
+<div id="diff-ops" class="card" style="max-height:300px;overflow-y:auto;font-family:monospace;font-size:.8rem"></div>
+
+<h3 style="margin-top:16px">Comments</h3>
+<div id="comments-list"></div>
+<div class="card" style="margin-top:12px">
+<div class="form-group">
+<label>Add Comment</label>
+<textarea id="comment-body" placeholder="Write a comment..."></textarea>
+</div>
+<div class="form-group">
+<label>Author</label>
+<input id="comment-author" placeholder="Your name" />
+</div>
+<button class="btn btn-primary" onclick="submitComment()">Comment</button>
+</div>
+</section>
+</main>
+
+<script>
+const API = '/api/v1';
+let currentMR = null;
+let map = null;
+let diffLayer = null;
+
+// ─── Navigation ─────────────────────────────────────────────────────
+function showList() {
+  document.getElementById('view-list').classList.remove('hidden');
+  document.getElementById('view-create').classList.add('hidden');
+  document.getElementById('view-detail').classList.add('hidden');
+  loadDatasets();
+  loadReviews();
+}
+
+function showCreate() {
+  document.getElementById('view-list').classList.add('hidden');
+  document.getElementById('view-create').classList.remove('hidden');
+  document.getElementById('view-detail').classList.add('hidden');
+  loadDatasetsForCreate();
+}
+
+function showDetail(id) {
+  document.getElementById('view-list').classList.add('hidden');
+  document.getElementById('view-create').classList.add('hidden');
+  document.getElementById('view-detail').classList.remove('hidden');
+  loadReviewDetail(id);
+}
+
+// ─── API calls ──────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const resp = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts,
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || resp.statusText);
+  }
+  return resp.status === 200 || resp.status === 201 ? resp.json() : null;
+}
+
+// ─── Datasets & Branches ────────────────────────────────────────────
+async function loadDatasets() {
+  const datasets = await api('/datasets');
+  const sel = document.getElementById('filter-dataset');
+  sel.innerHTML = '<option value="">Select dataset...</option>' +
+    datasets.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+}
+
+async function loadDatasetsForCreate() {
+  const datasets = await api('/datasets');
+  const sel = document.getElementById('create-dataset');
+  sel.innerHTML = datasets.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  if (datasets.length) loadBranches();
+}
+
+async function loadBranches() {
+  const dsId = document.getElementById('create-dataset').value;
+  if (!dsId) return;
+  const branches = await api(`/datasets/${dsId}/branches`);
+  const opts = branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+  document.getElementById('create-source').innerHTML = opts;
+  document.getElementById('create-target').innerHTML = opts;
+}
+
+// ─── Reviews ────────────────────────────────────────────────────────
+async function loadReviews() {
+  const dsId = document.getElementById('filter-dataset').value;
+  if (!dsId) { document.getElementById('review-list').innerHTML = '<p class="meta">Select a dataset to view merge requests.</p>'; return; }
+  const status = document.getElementById('filter-status').value;
+  let url = `/reviews?dataset_id=${dsId}`;
+  if (status) url += `&status=${status}`;
+  const reviews = await api(url);
+  document.getElementById('review-list').innerHTML = reviews.length === 0
+    ? '<p class="meta">No merge requests found.</p>'
+    : reviews.map(mr => `
+      <div class="card mr-list-item" onclick="showDetail('${mr.id}')">
+        <div>
+          <strong>${escHtml(mr.title)}</strong>
+          <span class="badge badge-${mr.status}">${mr.status}</span>
+          <div class="meta">${escHtml(mr.author)} · ${new Date(mr.created_at).toLocaleDateString()}</div>
+        </div>
+      </div>
+    `).join('');
+}
+
+async function submitReview() {
+  const body = {
+    dataset_id: document.getElementById('create-dataset').value,
+    source_branch_id: document.getElementById('create-source').value,
+    target_branch_id: document.getElementById('create-target').value,
+    title: document.getElementById('create-title').value,
+    description: document.getElementById('create-desc').value,
+    author: document.getElementById('create-author').value,
+  };
+  if (!body.title || !body.author) { alert('Title and author required'); return; }
+  const mr = await api('/reviews', { method: 'POST', body: JSON.stringify(body) });
+  showDetail(mr.id);
+}
+
+// ─── Detail ─────────────────────────────────────────────────────────
+async function loadReviewDetail(id) {
+  currentMR = await api(`/reviews/${id}`);
+  document.getElementById('detail-title').textContent = currentMR.title;
+  document.getElementById('detail-desc').textContent = currentMR.description;
+  document.getElementById('detail-meta').textContent =
+    `By ${currentMR.author} · Created ${new Date(currentMR.created_at).toLocaleString()}`;
+  document.getElementById('detail-badge').innerHTML =
+    `<span class="badge badge-${currentMR.status}">${currentMR.status}</span>`;
+
+  const isOpen = currentMR.status === 'open';
+  const isApproved = currentMR.status === 'approved';
+  document.getElementById('btn-approve').style.display = isOpen ? '' : 'none';
+  document.getElementById('btn-merge').style.display = (isOpen || isApproved) ? '' : 'none';
+  document.getElementById('btn-close').style.display = (isOpen || isApproved) ? '' : 'none';
+
+  loadDiff(id);
+  loadComments(id);
+}
+
+async function loadDiff(id) {
+  try {
+    const diff = await api(`/reviews/${id}/diff`);
+    renderDiffOps(diff.operations);
+    renderDiffMap(diff.operations);
+  } catch (e) {
+    document.getElementById('diff-ops').innerHTML = `<p class="meta">Could not load diff: ${escHtml(e.message)}</p>`;
+  }
+}
+
+function renderDiffOps(ops) {
+  const html = ops.map(op => {
+    if (op.Insert) return `<div class="diff-insert">+ INSERT feature ${op.Insert.feature_id}</div>`;
+    if (op.Update) return `<div class="diff-update">~ UPDATE feature ${op.Update.feature_id}</div>`;
+    if (op.Delete) return `<div class="diff-delete">- DELETE feature ${op.Delete.feature_id}</div>`;
+    return '';
+  }).join('');
+  document.getElementById('diff-ops').innerHTML = html || '<p class="meta">No changes</p>';
+}
+
+function renderDiffMap(ops) {
+  if (!map) {
+    map = L.map('map').setView([0, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+    }).addTo(map);
+  }
+  if (diffLayer) map.removeLayer(diffLayer);
+  diffLayer = L.layerGroup().addTo(map);
+  // We don't have decoded geometries in the diff response (it's WKB), so just show counts
+  const bounds = [];
+  // Placeholder — in production would decode WKB to show on map
+}
+
+async function loadComments(id) {
+  const comments = await api(`/reviews/${id}/comments`);
+  document.getElementById('comments-list').innerHTML = comments.length === 0
+    ? '<p class="meta">No comments yet.</p>'
+    : comments.map(c => `
+      <div class="comment">
+        <div class="author">${escHtml(c.author)} <span class="meta">${new Date(c.created_at).toLocaleString()}</span></div>
+        <div class="body">${escHtml(c.body)}</div>
+        ${c.feature_id ? `<div class="meta">Re: feature ${c.feature_id}</div>` : ''}
+      </div>
+    `).join('');
+}
+
+// ─── Actions ────────────────────────────────────────────────────────
+async function approveReview() {
+  await fetch(API + `/reviews/${currentMR.id}/approve`, { method: 'PUT' });
+  loadReviewDetail(currentMR.id);
+}
+
+async function mergeReview() {
+  const author = prompt('Author name for merge commit:');
+  if (!author) return;
+  const result = await api(`/reviews/${currentMR.id}/merge`, {
+    method: 'POST',
+    body: JSON.stringify({ author }),
+  });
+  if (result.conflicts && result.conflicts.length > 0) {
+    alert('Merge has conflicts:\n' + result.conflicts.join('\n'));
+  } else {
+    alert('Merged successfully!');
+    loadReviewDetail(currentMR.id);
+  }
+}
+
+async function closeReview() {
+  if (!confirm('Close this merge request?')) return;
+  await fetch(API + `/reviews/${currentMR.id}/close`, { method: 'PUT' });
+  loadReviewDetail(currentMR.id);
+}
+
+async function submitComment() {
+  const body = document.getElementById('comment-body').value;
+  const author = document.getElementById('comment-author').value;
+  if (!body || !author) { alert('Comment and author required'); return; }
+  await api(`/reviews/${currentMR.id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ author, body }),
+  });
+  document.getElementById('comment-body').value = '';
+  loadComments(currentMR.id);
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// Boot
+showList();
+</script>
+</body>
+</html>

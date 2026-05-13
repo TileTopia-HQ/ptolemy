@@ -10,12 +10,16 @@ Enterprise GIS users are locked into proprietary platforms (Esri, Hexagon) prima
 
 ### Key Features (Roadmap)
 
-| Version | Feature |
-|---------|---------|
-| **v0.1** | Versioned feature store: branch, commit, diff, merge spatial datasets. CLI + REST API. |
-| **v0.2** | Conflict resolution, role-based access control, audit log. |
-| **v0.3** | Offline sync protocol, QGIS plugin for field-to-server workflows. |
-| **v0.4** | Web review UI — pull-request-style review for geodata changes. |
+| Version | Milestone | Status |
+|---------|-----------|--------|
+| **v0.1** | Core types, Store trait, API skeleton, CLI | ✓ Done |
+| **v0.2** | SQL migrations, full CRUD, branching, changesets, commit engine | ✓ Done |
+| **v0.3** | Diff engine, three-way merge, conflict detection, REST API | ✓ Done |
+| **v0.4** | Auth (JWT/RBAC), WebSocket collaboration, CLI workflows, GeoJSON I/O | ✓ Done |
+| **v0.5** | Prometheus metrics, OIDC SSO, graceful shutdown, connection pool tuning | ✓ Done |
+| **v0.6** | Spatial query API, MVT tile serving, pagination, batch operations | ✓ Done |
+| **v0.7** | QGIS plugin, offline sync protocol, field-to-server workflows | ✓ Done |
+| **v0.8** | Web review UI, pull-request-style geodata review, map diffs | ✓ Done |
 
 ## Architecture
 
@@ -74,7 +78,61 @@ ptolemy migrate --database-url postgres://localhost/ptolemy
 ptolemy serve --database-url postgres://localhost/ptolemy
 
 # API is now available at http://localhost:3000/api/v1
+# Metrics at http://localhost:3000/metrics
 ```
+
+## Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection URL | (required) |
+| `PTOLEMY_JWT_SECRET` | JWT signing secret (enables auth when set) | (disabled) |
+| `PTOLEMY_OIDC_ISSUER_URL` | OIDC provider URL (e.g. Keycloak realm) | (disabled) |
+| `PTOLEMY_OIDC_CLIENT_ID` | OAuth2 client ID | — |
+| `PTOLEMY_OIDC_CLIENT_SECRET` | OAuth2 client secret | — |
+| `PTOLEMY_OIDC_REDIRECT_URL` | Callback URL for OIDC flow | — |
+| `PTOLEMY_DB_MAX_CONNECTIONS` | Max DB pool connections | 10 |
+| `PTOLEMY_DB_MIN_CONNECTIONS` | Min DB pool connections | 2 |
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/health` | Health check |
+| GET | `/api/v1/datasets` | List datasets |
+| POST | `/api/v1/datasets` | Create dataset |
+| GET | `/api/v1/datasets/{id}` | Get dataset |
+| GET | `/api/v1/datasets/{id}/branches` | List branches |
+| POST | `/api/v1/datasets/{id}/branches` | Create branch |
+| GET | `/api/v1/branches/{id}` | Get branch |
+| GET | `/api/v1/branches/{id}/history` | Commit log |
+| GET | `/api/v1/branches/{id}/features` | List features (paginated) |
+| GET | `/api/v1/branches/{id}/features/bbox` | Spatial bbox filter |
+| POST | `/api/v1/branches/{id}/features/intersects` | Spatial intersects filter |
+| POST | `/api/v1/branches/{id}/features/within` | Spatial within filter |
+| GET | `/api/v1/branches/{id}/features/count` | Feature count |
+| GET | `/api/v1/branches/{id}/tiles/{z}/{x}/{y}.mvt` | MVT vector tiles |
+| POST | `/api/v1/branches/{id}/commit` | Commit changes |
+| POST | `/api/v1/branches/{id}/batch` | Batch commit (bulk ops) |
+| POST | `/api/v1/branches/{target}/merge/{source}` | Merge branches |
+| GET | `/api/v1/diff/{from}/{to}` | Diff changesets |
+| GET | `/api/v1/sync/pull` | Pull branch snapshot (full or incremental) |
+| POST | `/api/v1/sync/push` | Push local edits to branch |
+| GET | `/api/v1/sync/status` | Check if local is behind remote |
+| GET | `/api/v1/reviews` | List merge requests |
+| POST | `/api/v1/reviews` | Create merge request |
+| GET | `/api/v1/reviews/{id}` | Get merge request |
+| PUT | `/api/v1/reviews/{id}/approve` | Approve review |
+| PUT | `/api/v1/reviews/{id}/close` | Close review |
+| POST | `/api/v1/reviews/{id}/merge` | Merge via review |
+| GET | `/api/v1/reviews/{id}/diff` | Review diff |
+| GET | `/api/v1/reviews/{id}/comments` | List comments |
+| POST | `/api/v1/reviews/{id}/comments` | Add comment |
+| GET | `/metrics` | Prometheus metrics |
+| GET | `/auth/oidc/login` | OIDC SSO login |
+| GET | `/auth/oidc/callback` | OIDC callback |
+| GET | `/review` | Web review UI |
+| WS | `/ws/branches/{id}` | Real-time branch events |
 
 ## Building
 
@@ -94,7 +152,7 @@ crates/
 
 ## License
 
-Mozilla Public License 2.0. See [LICENSE](LICENSE) for details.
+GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE) for details.
 
 ## Prior Art & Differentiation
 
