@@ -182,6 +182,68 @@ ptolemy serve --database-url postgres://localhost/ptolemy
 | POST | `/api/v1/conflicts/{id}/resolve` | Resolve conflicts |
 | GET | `/api/v1/events/stream` | SSE real-time event stream |
 | WS | `/ws/branches/{id}` | Real-time branch events |
+| **Networks** | | |
+| GET | `/api/v1/datasets/{id}/networks` | List geometric networks |
+| POST | `/api/v1/datasets/{id}/networks` | Create network |
+| GET | `/api/v1/networks/{id}` | Get network |
+| GET | `/api/v1/networks/{id}/junctions` | List junctions |
+| POST | `/api/v1/networks/{id}/junctions` | Add junction |
+| GET | `/api/v1/networks/{id}/edges` | List edges |
+| POST | `/api/v1/networks/{id}/edges` | Add edge |
+| POST | `/api/v1/networks/{id}/trace` | Network trace (upstream/downstream) |
+| POST | `/api/v1/networks/{id}/shortest-path` | Dijkstra shortest path |
+| GET | `/api/v1/networks/{id}/connectivity` | Connectivity report |
+| **Linear Referencing** | | |
+| GET | `/api/v1/datasets/{id}/routes` | List LRS routes |
+| POST | `/api/v1/datasets/{id}/routes` | Create route |
+| GET | `/api/v1/routes/{id}` | Get route |
+| GET | `/api/v1/routes/{id}/events` | List route events |
+| POST | `/api/v1/routes/{id}/events` | Create event (point/linear) |
+| GET | `/api/v1/routes/{id}/locate?lng=&lat=` | Locate point on route (measure) |
+| GET | `/api/v1/routes/{id}/subline?from_measure=&to_measure=` | Extract sub-line |
+| **Raster/Imagery** | | |
+| GET | `/api/v1/datasets/{id}/rasters` | List raster catalogs |
+| POST | `/api/v1/datasets/{id}/rasters` | Create raster catalog |
+| GET | `/api/v1/rasters/{id}` | Get raster catalog |
+| GET | `/api/v1/rasters/{id}/tiles` | List tiles |
+| POST | `/api/v1/rasters/{id}/tiles` | Upload tile |
+| GET | `/api/v1/rasters/{id}/value?lng=&lat=` | Pixel value at point |
+| GET | `/api/v1/rasters/{id}/stats` | Band statistics |
+| **Domains & Rules** | | |
+| GET | `/api/v1/datasets/{id}/domains` | List domains |
+| POST | `/api/v1/datasets/{id}/domains` | Create domain (coded value / range) |
+| GET | `/api/v1/domains/{id}` | Get domain |
+| DELETE | `/api/v1/domains/{id}` | Delete domain |
+| GET | `/api/v1/datasets/{id}/subtypes` | List subtypes |
+| POST | `/api/v1/datasets/{id}/subtypes` | Create subtype |
+| GET | `/api/v1/subtypes/{id}` | Get subtype |
+| DELETE | `/api/v1/subtypes/{id}` | Delete subtype |
+| GET | `/api/v1/datasets/{id}/attribute-rules` | List attribute rules |
+| POST | `/api/v1/datasets/{id}/attribute-rules` | Create attribute rule |
+| GET | `/api/v1/attribute-rules/{id}` | Get rule |
+| PUT | `/api/v1/attribute-rules/{id}` | Update rule |
+| DELETE | `/api/v1/attribute-rules/{id}` | Delete rule |
+| POST | `/api/v1/attribute-rules/{id}/validate` | Validate rule expression |
+| **Relationships** | | |
+| GET | `/api/v1/datasets/{id}/relationships` | List relationship classes |
+| POST | `/api/v1/datasets/{id}/relationships` | Create relationship class |
+| GET | `/api/v1/relationship-classes/{id}` | Get relationship class |
+| DELETE | `/api/v1/relationship-classes/{id}` | Delete relationship class |
+| GET | `/api/v1/relationship-classes/{id}/records` | List records |
+| POST | `/api/v1/relationship-classes/{id}/records` | Create record |
+| DELETE | `/api/v1/relationship-records/{id}` | Delete record |
+| GET | `/api/v1/features/{id}/related` | Navigate relationships |
+| **Cartography** | | |
+| GET | `/api/v1/datasets/{id}/symbology` | List symbology rules |
+| POST | `/api/v1/datasets/{id}/symbology` | Create symbology rule |
+| GET | `/api/v1/symbology/{id}` | Get symbology rule |
+| PUT | `/api/v1/symbology/{id}` | Update symbology |
+| DELETE | `/api/v1/symbology/{id}` | Delete symbology |
+| GET | `/api/v1/datasets/{id}/labels` | List label rules |
+| POST | `/api/v1/datasets/{id}/labels` | Create label rule |
+| GET | `/api/v1/labels/{id}` | Get label rule |
+| PUT | `/api/v1/labels/{id}` | Update label |
+| DELETE | `/api/v1/labels/{id}` | Delete label |
 
 ## Building
 

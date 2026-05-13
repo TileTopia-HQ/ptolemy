@@ -57,6 +57,18 @@ impl PgStore {
         sqlx::raw_sql(sql_007).execute(&self.pool).await?;
         let sql_008 = include_str!("../migrations/008_tenancy.sql");
         sqlx::raw_sql(sql_008).execute(&self.pool).await?;
+        let sql_009 = include_str!("../migrations/009_networks.sql");
+        sqlx::raw_sql(sql_009).execute(&self.pool).await?;
+        let sql_010 = include_str!("../migrations/010_linear_ref.sql");
+        sqlx::raw_sql(sql_010).execute(&self.pool).await?;
+        let sql_011 = include_str!("../migrations/011_raster.sql");
+        sqlx::raw_sql(sql_011).execute(&self.pool).await?;
+        let sql_012 = include_str!("../migrations/012_domains_rules.sql");
+        sqlx::raw_sql(sql_012).execute(&self.pool).await?;
+        let sql_013 = include_str!("../migrations/013_relationships.sql");
+        sqlx::raw_sql(sql_013).execute(&self.pool).await?;
+        let sql_014 = include_str!("../migrations/014_cartography.sql");
+        sqlx::raw_sql(sql_014).execute(&self.pool).await?;
         Ok(())
     }
 

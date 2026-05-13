@@ -4,17 +4,23 @@
 
 pub mod analytics;
 pub mod auth;
+pub mod cartography;
 pub mod catalog;
 pub mod conflicts;
 pub mod delivery;
+pub mod domains;
 pub mod grpc;
 pub mod jobs;
 pub mod locks;
+pub mod lrs;
 pub mod metrics;
+pub mod network;
 pub mod ogc;
 pub mod oidc;
 pub mod quality;
+pub mod raster;
 pub mod rate_limit;
+pub mod relationships;
 pub mod review;
 pub mod routes;
 pub mod sse;
@@ -63,6 +69,12 @@ pub fn app(state: AppState) -> Router {
         .nest("/api/v1", catalog::catalog_routes())
         .nest("/api/v1", tenant::tenant_routes())
         .nest("/api/v1", conflicts::conflict_routes())
+        .nest("/api/v1", network::network_routes())
+        .nest("/api/v1", lrs::lrs_routes())
+        .nest("/api/v1", raster::raster_routes())
+        .nest("/api/v1", domains::domain_routes())
+        .nest("/api/v1", relationships::relationship_routes())
+        .nest("/api/v1", cartography::cartography_routes())
         .nest("/api/v1", sse::sse_routes(sse_broadcast))
         .merge(oidc::oidc_routes())
         .nest("/ws", ws::ws_routes(event_bus))

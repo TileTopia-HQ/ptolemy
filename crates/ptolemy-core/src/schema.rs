@@ -79,16 +79,75 @@ pub struct TopologyRule {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum TopologyRuleType {
+    // ─── Polygon rules ──────────────────────────────────────────
     /// No two features may overlap
     NoOverlap,
     /// No gaps between adjacent polygons
     NoGaps,
+    /// Polygons must not overlap each other (same layer)
+    MustNotOverlap,
+    /// Polygons must not overlap polygons in another dataset
+    MustNotOverlapWith { reference_dataset_id: Uuid },
+    /// Polygons must be covered by polygons in another dataset
+    MustBeCoveredBy { reference_dataset_id: Uuid },
+    /// Polygon must cover each other completely
+    MustCoverEachOther { reference_dataset_id: Uuid },
+    /// Boundary must be covered by lines in another dataset
+    BoundaryMustBeCoveredBy { reference_dataset_id: Uuid },
+    /// Area boundary must be covered by boundary of another area
+    AreaBoundaryMustBeCoveredByAreaBoundary { reference_dataset_id: Uuid },
+    /// Must contain point from another dataset
+    ContainsPoint { reference_dataset_id: Uuid },
+
+    // ─── Line rules ─────────────────────────────────────────────
+    /// Lines must not overlap
+    LineMustNotOverlap,
+    /// Lines must not intersect
+    LineMustNotIntersect,
+    /// Lines must not have dangles (unconnected endpoints)
+    MustNotHaveDangles,
+    /// Lines must not have pseudonodes (unnecessary vertices)
+    MustNotHavePseudonodes,
     /// Lines must be connected at endpoints
     MustConnect,
-    /// Points must be within polygons of another dataset
+    /// Lines must not self-overlap
+    LineMustNotSelfOverlap,
+    /// Lines must not self-intersect
+    LineMustNotSelfIntersect,
+    /// Lines must be single-part
+    LineMustBeSinglePart,
+    /// Lines must not intersect or touch interior
+    MustNotIntersectOrTouchInterior { reference_dataset_id: Uuid },
+    /// Endpoint must be covered by point
+    EndpointMustBeCoveredBy { reference_dataset_id: Uuid },
+    /// Lines must be covered by boundary of polygon
+    LineMustBeCoveredByBoundary { reference_dataset_id: Uuid },
+
+    // ─── Point rules ────────────────────────────────────────────
+    /// Points must be covered by line
+    PointMustBeCoveredByLine { reference_dataset_id: Uuid },
+    /// Points must be covered by endpoint of line
+    PointMustBeCoveredByEndpoint { reference_dataset_id: Uuid },
+    /// Points must be covered by polygon boundary
+    PointMustBeCoveredByBoundary { reference_dataset_id: Uuid },
+    /// Points must be inside polygon
     MustBeInside { reference_dataset_id: Uuid },
+    /// Points must be properly inside polygon (not on boundary)
+    MustBeProperlyInside { reference_dataset_id: Uuid },
+    /// Points must not overlap (no coincident points)
+    PointMustNotOverlap,
+
+    // ─── General rules ──────────────────────────────────────────
     /// Features must not self-intersect
     NoSelfIntersection,
+    /// Features must not have null geometry
+    MustNotBeNull,
+    /// Geometry must be valid (well-formed)
+    MustBeValid,
+    /// Features must be within a defined extent
+    MustBeWithinExtent { min_x: f64, min_y: f64, max_x: f64, max_y: f64 },
+    /// Vertex count must not exceed limit
+    MaxVertexCount { max: usize },
 }
 
 /// Validation error returned when a feature fails schema or topology checks.
