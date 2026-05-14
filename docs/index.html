@@ -114,6 +114,8 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 <li>Review & merge workflows</li>
 <li>WebSocket real-time branch events</li>
 <li>Three-way merge with conflict detection</li>
+<li>Ephemeral room relay (view sync, cursor sharing, chat)</li>
+<li>Follow mode — sync camera between viewer instances</li>
 </ul>
 </div>
 <div class="card">
@@ -438,6 +440,56 @@ footer{border-top:1px solid var(--border);padding:32px 0;text-align:center;color
 </ul>
 </div>
 </div>
+</div>
+</section>
+
+<section>
+<div class="container">
+<h2>Real-Time Collaboration Relay</h2>
+<p style="margin-bottom:16px">Ptolemy includes an ephemeral room-based WebSocket relay at <code>/ws/rooms/{room_id}</code>
+for real-time viewer collaboration. Every JSON message sent by one participant is broadcast
+to all others in the same room. No messages are persisted — rooms are created on first
+connection and dropped when the last client disconnects.</p>
+
+<div class="grid">
+<div class="card">
+<h3>📡 View Sync (Follow Mode)</h3>
+<ul>
+<li>Broadcast camera state (lat, lng, zoom, bearing, pitch)</li>
+<li>Follower's viewer mirrors the leader's view in real-time</li>
+<li>Throttled at 200ms, delta-only to minimise bandwidth</li>
+</ul>
+</div>
+<div class="card">
+<h3>🖱️ Cursor Sharing</h3>
+<ul>
+<li>Share mouse position on the map between collaborators</li>
+<li>See other users' cursors as coloured dots</li>
+<li>Configurable throttle rate</li>
+</ul>
+</div>
+<div class="card">
+<h3>👥 Presence & Chat</h3>
+<ul>
+<li>Track which users are online in a room</li>
+<li>User name and colour assignment</li>
+<li>Real-time text messaging within a room</li>
+</ul>
+</div>
+</div>
+
+<h3 style="margin-top:28px;color:var(--heading)">Protocol (JSON over WebSocket)</h3>
+<pre><code>// Connect to a room
+ws://localhost:3000/ws/rooms/my-room
+
+// Client → Server (relayed to all other clients)
+{ "type": "Join",   "user_id": "u1", "user_name": "Alice", "asset_id": "my-room" }
+{ "type": "Camera", "user_id": "u1", "latitude": 40.7, "longitude": -73.9, "zoom": 14, "bearing": 0, "pitch": 45 }
+{ "type": "Cursor", "user_id": "u1", "latitude": 40.71, "longitude": -73.91 }
+{ "type": "Chat",   "user_id": "u1", "user_name": "Alice", "message": "Look at this area" }
+{ "type": "Leave",  "user_id": "u1", "asset_id": "my-room" }</code></pre>
+<p style="margin-top:12px;color:var(--muted);font-size:.9rem">Messages are opaque to the server — it relays any valid text frame to all other
+subscribers. The schema above is the convention used by ViewTopia's collaboration client.</p>
 </div>
 </section>
 

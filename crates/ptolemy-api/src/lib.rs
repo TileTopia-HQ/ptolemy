@@ -31,6 +31,7 @@ pub mod rbac;
 pub mod relationships;
 pub mod replication;
 pub mod review;
+pub mod room_relay;
 pub mod routes;
 pub mod schema_evolution;
 pub mod sfcgal;
@@ -57,6 +58,7 @@ pub use delivery::{DeliveryJob, DeliverySender, spawn_delivery_worker};
 pub use jobs::BackgroundJobs;
 pub use metrics::{init_metrics, record_domain_event};
 pub use oidc::OidcConfig;
+pub use room_relay::RoomRelay;
 pub use sse::SseBroadcast;
 pub use telemetry::init_telemetry;
 pub use ws::EventBus;
@@ -71,6 +73,7 @@ const CONFLICTS_UI_HTML: &str = include_str!("../../../docs/conflicts.html");
 pub fn app(state: AppState) -> Router {
     let event_bus = Arc::new(EventBus::new(1024));
     let sse_broadcast = Arc::new(SseBroadcast::new(4096));
+    let room_relay = Arc::new(RoomRelay::new());
     let prom_handle = init_metrics();
 
     Router::new()
@@ -111,6 +114,7 @@ pub fn app(state: AppState) -> Router {
         .nest("/api/v1", sse::sse_routes(sse_broadcast))
         .merge(oidc::oidc_routes())
         .nest("/ws", ws::ws_routes(event_bus))
+        .nest("/ws/rooms", room_relay::room_routes(room_relay))
         .merge(metrics::metrics_routes(prom_handle))
         .layer(middleware::from_fn(metrics::metrics_middleware))
         .layer(middleware::from_fn(auth::auth_middleware))

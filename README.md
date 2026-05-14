@@ -127,6 +127,37 @@ ptolemy serve --database-url postgres://localhost/ptolemy
 
 ## API Endpoints
 
+### Real-Time Collaboration Relay
+
+Ptolemy includes an ephemeral room-based WebSocket relay at `/ws/rooms/{room_id}` for
+real-time viewer collaboration.  Every JSON message sent by one participant is broadcast
+to all other participants in the same room.  No messages are persisted — rooms are created
+on first connection and dropped when the last client disconnects.
+
+**Intended use cases:**
+
+| Feature | Description |
+|---------|-------------|
+| **View sync** | Broadcast camera state (lat, lng, zoom, bearing, pitch) so a follower's viewer mirrors the leader's view |
+| **Cursor sharing** | Share mouse position on the map between collaborators |
+| **Presence** | Track which users are online in a room |
+| **Chat** | Real-time text messaging within a room |
+
+**Protocol (JSON over WebSocket):**
+
+```jsonc
+// Client → Server (broadcast to all other clients in the room)
+{ "type": "Join", "user_id": "u1", "user_name": "Alice", "asset_id": "my-room" }
+{ "type": "Camera", "user_id": "u1", "latitude": 40.7, "longitude": -73.9, "zoom": 14, "bearing": 0, "pitch": 45 }
+{ "type": "Cursor", "user_id": "u1", "latitude": 40.71, "longitude": -73.91 }
+{ "type": "Chat", "user_id": "u1", "user_name": "Alice", "message": "Look at this area" }
+{ "type": "Leave", "user_id": "u1", "asset_id": "my-room" }
+```
+
+Messages are opaque to the server — it simply relays any valid text frame to all other
+subscribers.  The message schema above is a convention used by ViewTopia's collaboration
+client but any JSON structure will work.
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/v1/health` | Health check |
@@ -205,6 +236,7 @@ ptolemy serve --database-url postgres://localhost/ptolemy
 | POST | `/api/v1/conflicts/{id}/resolve` | Resolve conflicts |
 | GET | `/api/v1/events/stream` | SSE real-time event stream |
 | WS | `/ws/branches/{id}` | Real-time branch events |
+| WS | `/ws/rooms/{room_id}` | Ephemeral collaboration relay (presence, view sync, chat) |
 | **Networks** | | |
 | GET | `/api/v1/datasets/{id}/networks` | List geometric networks |
 | POST | `/api/v1/datasets/{id}/networks` | Create network |
