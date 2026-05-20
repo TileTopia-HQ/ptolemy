@@ -28,6 +28,7 @@ pub mod quality;
 pub mod raster;
 pub mod rate_limit;
 pub mod rbac;
+pub mod real_estate;
 pub mod relationships;
 pub mod replication;
 pub mod review;
@@ -110,6 +111,7 @@ pub fn app(state: AppState) -> Router {
         .nest("/api/v1", schema_evolution::schema_routes())
         .nest("/api/v1", replication::replication_routes())
         .nest("/api/v1", rbac::rbac_routes())
+        .nest("/api/v1", real_estate::real_estate_routes())
         .nest("/api/v1", compaction::compaction_routes())
         .nest("/api/v1", sse::sse_routes(sse_broadcast))
         .merge(oidc::oidc_routes())
